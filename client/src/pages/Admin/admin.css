@@ -1,0 +1,92 @@
+.admin-container {
+    max-width: 1400px;
+    padding: 32px 32px;
+    margin: 0 auto;
+}
+
+.sider {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    background-color: var(--secondary);
+    box-shadow: 5px 0px 20px -8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.sider-links {
+    scrollbar-width: 1px;
+    scrollbar-color: #43aaea transparent;
+}
+
+.sider-links::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sider-links::-webkit-scrollbar-thumb {
+    background: #43aaea;
+    border-radius: 1px;
+}
+
+.sider-links::-webkit-scrollbar-thumb:hover {
+    background: var(--secondary);
+}
+
+.sider-open {
+    width: 65px;
+}
+
+.sider-closed {
+    width: 220px;
+}
+
+.sider-arrow {
+    position: absolute;
+    top: 12px;
+    right: -20px;
+}
+
+.sider-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    color: #fff;
+    font-size: 14px;
+    transition: all 0.2s ease-out;
+}
+
+.sider-link-active {
+    background-color: rgba(255, 255, 255, 0.2)
+}
+
+.content {
+    width: 100%;
+    min-height: 100dvh;
+    background-color: #f2f6f3a3;
+    transition: margin-left 0.3s ease;
+}
+
+@media screen and (max-width: 799px) {
+    .admin-container {
+        padding: 24px 20px;
+    }
+}
+
+@media screen and (max-width: 549px) {
+    .admin-container {
+        padding: 20px 12px;
+    }
+
+    .sider-open {
+        width: 50px;
+    }
+
+    .sider-arrow {
+        padding: 8px;
+        top: 12px;
+        right: -16px;
+    }
+}
