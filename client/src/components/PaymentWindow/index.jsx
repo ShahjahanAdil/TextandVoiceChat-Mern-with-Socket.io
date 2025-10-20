@@ -8,6 +8,8 @@ const initialState = {
 
 export default function PaymentWindow({ selectedPlan, setSelectedPlan, user, selectedChatter }) {
     const [state, setState] = useState(initialState)
+    const [isBusy, setIsBusy] = useState(false)
+    const [remainingMinutes, setRemainingMinutes] = useState(null)
     const [paymentMethods, setPaymentMethods] = useState([])
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null)
     const [screenshot, setScreenshot] = useState(null)
@@ -22,6 +24,22 @@ export default function PaymentWindow({ selectedPlan, setSelectedPlan, user, sel
             plan: selectedPlan,
             amountPaid: selectedPlan.price
         }))
+    }, [])
+
+    useEffect(() => {
+        const isChatter = user?.role === "chatter"
+        if (isChatter) return
+
+        setLoading(true)
+        axios.get(`${import.meta.env.VITE_HOST}/chatter/busy/check?chatterID=${selectedChatter._id}`)
+            .then(res => {
+                setIsBusy(res.data.isBusy)
+                if (res.data.isBusy) {
+                    setRemainingMinutes(res.data.remainingMinutes);
+                }
+            })
+            .catch(err => console.error(err))
+            .finally(() => setLoading(false))
     }, [])
 
     useEffect(() => {
@@ -111,83 +129,92 @@ export default function PaymentWindow({ selectedPlan, setSelectedPlan, user, sel
                         <div className='flex flex-col justify-center items-center py-30'>
                             <div className='w-10 h-10 border-t-2 border-[var(--primary)] rounded-full animate-spin'></div>
                         </div>
-                        :
-                        <>
-                            <p className='text-gray-800 font-bold mt-8 mb-4'>Selected Plan</p>
-                            <div className='flex justify-between items-center gap-12 w-fit bg-[var(--light)] p-6 rounded-2xl'>
-                                <div>
-                                    <p className='text-[var(--hard)]'>{selectedPlan.title}</p>
-                                    <p className='text-2xl text-[var(--dark)] font-bold'>{selectedPlan.price} PKR</p>
-                                </div>
-                                <div className='flex flex-col items-center gap-1'>
-                                    <div className='flex justify-center items-center w-8 h-8 bg-[var(--primary)] rounded-full'>
-                                        <Timer className='text-white' />
-                                    </div>
-                                    <p className='text-xs text-gray-600'>{selectedPlan.duration} Mins</p>
-                                </div>
+                        : isBusy ?
+                            <div className='flex flex-col justify-center items-center py-20'>
+                                <p className='text-lg text-red-500 font-semibold'>
+                                    The chatter is busy right now.
+                                </p>
+                                <p className='text-sm text-gray-600 mt-2'>
+                                    You can buy the plan after {remainingMinutes} minutes.
+                                </p>
                             </div>
+                            :
+                            <>
+                                <p className='text-gray-800 font-bold mt-8 mb-4'>Selected Plan</p>
+                                <div className='flex justify-between items-center gap-12 w-fit bg-[var(--light)] p-6 rounded-2xl'>
+                                    <div>
+                                        <p className='text-[var(--hard)]'>{selectedPlan.title}</p>
+                                        <p className='text-2xl text-[var(--dark)] font-bold'>{selectedPlan.price} PKR</p>
+                                    </div>
+                                    <div className='flex flex-col items-center gap-1'>
+                                        <div className='flex justify-center items-center w-8 h-8 bg-[var(--primary)] rounded-full'>
+                                            <Timer className='text-white' />
+                                        </div>
+                                        <p className='text-xs text-gray-600'>{selectedPlan.duration} Mins</p>
+                                    </div>
+                                </div>
 
-                            <p className='text-gray-800 font-bold mt-8 mb-4'>Select a Payment Method</p>
-                            <div className='grid grid-cols-2 md:grid-cols-3 gap-4'>
-                                {
-                                    paymentMethods.length > 0 ?
-                                        paymentMethods.map(method => (
-                                            <div key={method._id} className={`p-6 cursor-pointer rounded-2xl ${method._id === selectedPaymentMethod?._id ? "bg-blue-50 border border-blue-200" : "bg-gray-100"}`}
-                                                onClick={() => handleSelectPaymentMethod(method)}
-                                            >
-                                                <div className='flex flex-col gap-1'>
-                                                    <p className='text-sm text-gray-700'><span className='font-bold'>Bank Name:</span> {method.bankName}</p>
-                                                    <p className='text-sm text-gray-700'><span className='font-bold'>Account Name:</span> {method.accountName}</p>
-                                                    <p className='text-sm text-gray-700'><span className='font-bold'>Account Number:</span> {method.accountNumber}</p>
+                                <p className='text-gray-800 font-bold mt-8 mb-4'>Select a Payment Method</p>
+                                <div className='grid grid-cols-2 md:grid-cols-3 gap-4'>
+                                    {
+                                        paymentMethods.length > 0 ?
+                                            paymentMethods.map(method => (
+                                                <div key={method._id} className={`p-6 cursor-pointer rounded-2xl ${method._id === selectedPaymentMethod?._id ? "bg-blue-50 border border-blue-200" : "bg-gray-100"}`}
+                                                    onClick={() => handleSelectPaymentMethod(method)}
+                                                >
+                                                    <div className='flex flex-col gap-1'>
+                                                        <p className='text-sm text-gray-700'><span className='font-bold'>Bank Name:</span> {method.bankName}</p>
+                                                        <p className='text-sm text-gray-700'><span className='font-bold'>Account Name:</span> {method.accountName}</p>
+                                                        <p className='text-sm text-gray-700'><span className='font-bold'>Account Number:</span> {method.accountNumber}</p>
+                                                    </div>
                                                 </div>
+                                            ))
+                                            :
+                                            <div className='text-sm text-red-500'>No payment method present right now!</div>
+                                    }
+                                </div>
+
+                                {
+                                    selectedPaymentMethod &&
+                                    <>
+                                        <p className='text-gray-800 font-bold mt-8'>Make Transaction</p>
+                                        <p className='w-fit bg-yellow-50 text-yellow-600 text-sm mt-1 mb-4'>Send amount to selected account and fill all fields below</p>
+
+                                        <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                                            <div>
+                                                <label className='text-sm text-gray-800 font-bold'>Transaction ID</label>
+                                                <input type="text" name="transactionID" id="transactionID" placeholder='Enter Transaction ID' className='block w-full border border-gray-300 mt-2'
+                                                    onChange={(e) => setState(prev => ({
+                                                        ...prev,
+                                                        transactionID: e.target.value
+                                                    }))}
+                                                />
                                             </div>
-                                        ))
-                                        :
-                                        <div className='text-sm text-red-500'>No payment method present right now!</div>
+                                            <div>
+                                                <label className='text-sm text-gray-800 font-bold'>Screenshot</label>
+                                                <input type="file" name="transactionSS" id="transactionSS" className='block w-full border border-gray-300 mt-2'
+                                                    accept="image/png, image/jpeg, image/webp"
+                                                    onChange={handleFileChange}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className='flex justify-end gap-2'>
+                                            <button className='bg-gray-200 text-gray-700 px-6 py-2 rounded-lg mt-6 transition-all duration-300 ease-out hover:opacity-70'
+                                                onClick={() => setSelectedPlan(null)}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button className='bg-[var(--secondary)] text-white px-6 py-2 rounded-lg mt-6 transition-all duration-300 ease-out hover:opacity-70'
+                                                disabled={loading}
+                                                onClick={handleSubmit}
+                                            >
+                                                Submit
+                                            </button>
+                                        </div>
+                                    </>
                                 }
-                            </div>
-
-                            {
-                                selectedPaymentMethod &&
-                                <>
-                                    <p className='text-gray-800 font-bold mt-8'>Make Transaction</p>
-                                    <p className='w-fit bg-yellow-50 text-yellow-600 text-sm mt-1 mb-4'>Send amount to selected account and fill all fields below</p>
-
-                                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-                                        <div>
-                                            <label className='text-sm text-gray-800 font-bold'>Transaction ID</label>
-                                            <input type="text" name="transactionID" id="transactionID" placeholder='Enter Transaction ID' className='block w-full border border-gray-300 mt-2'
-                                                onChange={(e) => setState(prev => ({
-                                                    ...prev,
-                                                    transactionID: e.target.value
-                                                }))}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className='text-sm text-gray-800 font-bold'>Screenshot</label>
-                                            <input type="file" name="transactionSS" id="transactionSS" className='block w-full border border-gray-300 mt-2'
-                                                accept="image/png, image/jpeg, image/webp"
-                                                onChange={handleFileChange}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className='flex justify-end gap-2'>
-                                        <button className='bg-gray-200 text-gray-700 px-6 py-2 rounded-lg mt-6 transition-all duration-300 ease-out hover:opacity-70'
-                                            onClick={() => setSelectedPlan(null)}
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button className='bg-[var(--secondary)] text-white px-6 py-2 rounded-lg mt-6 transition-all duration-300 ease-out hover:opacity-70'
-                                            disabled={loading}
-                                            onClick={handleSubmit}
-                                        >
-                                            Submit
-                                        </button>
-                                    </div>
-                                </>
-                            }
-                        </>
+                            </>
                 }
             </div>
         </div >

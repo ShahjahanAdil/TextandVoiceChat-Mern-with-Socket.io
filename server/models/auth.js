@@ -11,7 +11,8 @@ const authSchema = new Schema({
     age: { type: Number, default: null },
     gender: { type: String, enum: ['male', 'female'], default: null },
     avatar: { type: String, default: null },
-    online: { type: Boolean, default: false },
+    isOnline: { type: Boolean, default: false },
+    lastSeen: { type: Date, default: null },
     plans: [{
         title: String,
         description: String,

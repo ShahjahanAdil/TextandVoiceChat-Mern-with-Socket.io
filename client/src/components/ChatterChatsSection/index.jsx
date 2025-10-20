@@ -3,7 +3,7 @@ import { Image } from 'antd'
 import axios from 'axios'
 import { useAuthContext } from '../../contexts/AuthContext'
 
-export default function ChatterChatsSection({ handleSelectChatter }) {
+export default function ChatterChatsSection({ handleSelectChatter, socket }) {
     const { user } = useAuthContext()
     const [sessions, setSessions] = useState([])
     const [searchText, setSearchText] = useState("")
@@ -59,6 +59,22 @@ export default function ChatterChatsSection({ handleSelectChatter }) {
             .finally(() => setLoading(false))
     }
 
+    useEffect(() => {
+        if (!socket) return;
+
+        socket.on("userStatusUpdate", ({ userID, isOnline, lastSeen }) => {
+            setSessions(prev =>
+                prev.map(u =>
+                    u._id === userID
+                        ? { ...u, isOnline, lastSeen }
+                        : u
+                )
+            )
+        });
+
+        return () => socket.off("userStatusUpdate");
+    }, [socket]);
+
     return (
         <div className='w-[350px] h-screen bg-white border-r border-gray-200 rounded-tr-3xl rounded-br-3xl overflow-y-auto'>
             <div className='p-6 border-b border-gray-200'>
@@ -78,13 +94,19 @@ export default function ChatterChatsSection({ handleSelectChatter }) {
                             onClick={() => handleSelectChatter(user)}
                         >
                             <div className='flex items-center gap-3'>
-                                <div className='flex justify-center items-center w-12 h-12 bg-[var(--primary)] text-white rounded-full overflow-hidden'>
+                                <div className='relative flex justify-center items-center w-12 h-12 bg-[var(--primary)] text-white rounded-full'>
                                     {
                                         user.avatar ?
-                                            <Image src={user.avatar} alt="profile" className='w-full h-full object-cover' />
+                                            <div className='w-full h-full rounded-full overflow-hidden'>
+                                                <Image src={user.avatar} alt="profile" className='w-full h-full object-cover' />
+                                            </div>
                                             :
                                             user.username?.slice(0, 2).toUpperCase()
                                     }
+
+                                    {user.isOnline && (
+                                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                                    )}
                                 </div>
                                 <div className='flex flex-col gap-1'>
                                     <p className='text-sm font-bold'>{user.username}</p>

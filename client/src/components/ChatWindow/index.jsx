@@ -3,19 +3,31 @@ import { Image } from 'antd'
 import PaymentWindow from '../PaymentWindow'
 import { Mic, SendHorizonal } from 'lucide-react'
 import dayjs from 'dayjs'
+import relativeTime from "dayjs/plugin/relativeTime";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import axios from 'axios'
-import { io } from "socket.io-client";
+// import { io } from "socket.io-client";
 
-export default function ChatWindow({ user, selectedChatter }) {
+dayjs.extend(relativeTime);
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+export default function ChatWindow({ user, selectedChatter, socket }) {
     const [session, setSession] = useState(null)
     const [selectedPlan, setSelectedPlan] = useState(null)
-    const [socket, setSocket] = useState(null);
     const [messages, setMessages] = useState([])
     const [text, setText] = useState("")
     const [loading, setLoading] = useState(true)
     const [loadingMessages, setLoadingMessages] = useState(true)
     const [timeLeft, setTimeLeft] = useState(null)
     const messagesEndRef = useRef(null)
+
+    // const [socket, setSocket] = useState(null);
+    const [chatterStatus, setChatterStatus] = useState({
+        isOnline: selectedChatter?.isOnline || false,
+        lastSeen: selectedChatter?.lastSeen || null,
+    });
 
     const [isRecording, setIsRecording] = useState(false)
     const [recordDuration, setRecordDuration] = useState(0)
@@ -25,6 +37,36 @@ export default function ChatWindow({ user, selectedChatter }) {
     const recordedChunksRef = useRef([])
     const recordTimerRef = useRef(null)
     const recordStartRef = useRef(null)
+
+    // 🔸 Listen for real-time status updates for the selected chatter
+    useEffect(() => {
+        if (!socket || !selectedChatter) return;
+
+        const handleUserStatusUpdate = (data) => {
+            if (data.userID === selectedChatter._id) {
+                setChatterStatus({
+                    isOnline: data.isOnline,
+                    lastSeen: data.lastSeen,
+                });
+            }
+        };
+
+        socket.on("userStatusUpdate", handleUserStatusUpdate);
+
+        return () => {
+            socket.off("userStatusUpdate", handleUserStatusUpdate);
+        };
+    }, [socket, selectedChatter]);
+
+    // 🔸 Update chatter status when selectedChatter changes
+    useEffect(() => {
+        if (selectedChatter) {
+            setChatterStatus({
+                isOnline: selectedChatter.isOnline || false,
+                lastSeen: selectedChatter.lastSeen || null,
+            });
+        }
+    }, [selectedChatter]);
 
     useEffect(() => {
         if (!selectedChatter || !user) return
@@ -90,16 +132,16 @@ export default function ChatWindow({ user, selectedChatter }) {
         fetchMessages();
     }, [session?._id]);
 
-    useEffect(() => {
-        const s = io(import.meta.env.VITE_HOST, { transports: ["websocket"] });
+    // useEffect(() => {
+    //     const s = io(import.meta.env.VITE_HOST, { transports: ["websocket"] });
 
-        s.on("connect", () => console.log("Connected to chat"));
-        s.on("disconnect", () => console.log("Disconnected from chat"));
-        s.on("connect_error", (err) => console.error("Connection error:", err));
+    //     s.on("connect", () => console.log("Connected to chat"));
+    //     s.on("disconnect", () => console.log("Disconnected from chat"));
+    //     s.on("connect_error", (err) => console.error("Connection error:", err));
 
-        setSocket(s);
-        return () => s.disconnect();
-    }, []);
+    //     setSocket(s);
+    //     return () => s.disconnect();
+    // }, []);
 
     // 🔸 Join session room once session is ready
     useEffect(() => {
@@ -236,6 +278,28 @@ export default function ChatWindow({ user, selectedChatter }) {
 
 
 
+    const formatLastSeen = (lastSeen) => {
+        if (!lastSeen) return "Offline";
+
+        const now = dayjs();
+        const localTime = dayjs.utc(lastSeen).tz(dayjs.tz.guess());
+
+        // If within 1 minute
+        if (now.diff(localTime, "minute") < 1) return "Last seen just now";
+
+        // If within the last 24 hours
+        if (now.diff(localTime, "hour") < 24) return `Last seen ${localTime.fromNow()}`;
+
+        // If yesterday
+        if (now.subtract(1, "day").isSame(localTime, "day"))
+            return `Last seen yesterday at ${localTime.format("hh:mm A")}`;
+
+        // Otherwise show date
+        return `Last seen on ${localTime.format("MMM D [at] hh:mm A")}`;
+    };
+
+
+
 
     // ---------- Render & UI ----------
 
@@ -265,7 +329,22 @@ export default function ChatWindow({ user, selectedChatter }) {
                                             <p className='text-xl uppercase'>{selectedChatter.username.slice(0, 2)}</p>
                                     }
                                 </div>
-                                <p className='text-gray-700 mt-4'><span className='font-bold'>Name:</span> {selectedChatter.username}</p>
+
+                                {/* {
+                                    selectedChatter.isOnline ?
+                                        <p className='text-sm bg-green-100 text-green-600 border border-green-200 px-2 py-0.5 rounded-md mt-2'>Online</p>
+                                        :
+                                        <p className='text-sm bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md mt-2'>{formatLastSeen(selectedChatter.lastSeen)}</p>
+                                } */}
+
+                                {
+                                    chatterStatus.isOnline ?
+                                        <p className='text-sm bg-green-100 text-green-600 border border-green-200 px-2 py-0.5 rounded-md mt-2'>Online</p>
+                                        :
+                                        <p className='text-sm bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md mt-2'>{formatLastSeen(chatterStatus.lastSeen)}</p>
+                                }
+
+                                <p className='text-gray-700 mt-3'><span className='font-bold'>Name:</span> {selectedChatter.username}</p>
                                 <div className='flex gap-3 mt-0.5'>
                                     <p className='text-gray-700'><span className='font-bold'>Gender:</span> <span className='capitalize'>{selectedChatter.gender}</span></p>
                                     <p className='text-gray-700'><span className='font-bold'>Age:</span> {selectedChatter.age}</p>
@@ -323,7 +402,21 @@ export default function ChatWindow({ user, selectedChatter }) {
                                     <p>{selectedChatter.username.slice(0, 2)}</p>
                             }
                         </div>
-                        <p className='text-gray-800 font-bold'>{selectedChatter.username}</p>
+                        <div>
+                            <p className='text-gray-800 font-bold'>{selectedChatter.username}</p>
+                            {/* {
+                                selectedChatter.isOnline ?
+                                    <p className='text-xs text-green-500'>Online</p>
+                                    :
+                                    <p className='text-xs text-gray-600'>{formatLastSeen(selectedChatter.lastSeen)}</p>
+                            } */}
+                            {
+                                chatterStatus.isOnline ?
+                                    <p className='text-xs text-green-500'>Online</p>
+                                    :
+                                    <p className='text-xs text-gray-600'>{formatLastSeen(chatterStatus.lastSeen)}</p>
+                            }
+                        </div>
                     </div>
                     <div className='flex flex-col items-center'>
                         <p className='text-sm text-gray-700 leading-tight'>Time remaining:</p>
@@ -342,17 +435,6 @@ export default function ChatWindow({ user, selectedChatter }) {
                             <div className='flex flex-col justify-end min-h-full px-12 py-6'>
                                 <div className='flex flex-col gap-3'>
                                     {messages.map((msg) => (
-                                        // <div
-                                        //     key={msg._id}
-                                        //     className={`flex ${msg.senderID === user._id ? "justify-end" : "justify-start"}`}
-                                        // >
-                                        //     <p className={`w-fit max-w-[70%] text-sm px-3 py-1.5 rounded-2xl break-all ${msg.senderID === user._id ? "bg-[var(--secondary)] text-white" : "bg-gray-200 text-gray-800"}`}>
-                                        //         {msg.message}
-                                        //         <div className='flex justify-end'>
-                                        //             <span className='text-[10px]'>{dayjs(msg.createdAt).format('h:mm A')}</span>
-                                        //         </div>
-                                        //     </p>
-                                        // </div>
                                         <div
                                             key={msg._id}
                                             className={`flex ${String(msg.senderID) === String(user._id) ? "justify-end" : "justify-start"}`}
@@ -395,8 +477,6 @@ export default function ChatWindow({ user, selectedChatter }) {
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                     />
-
-                    {/* <button className='flex justify-center items-center w-12 h-12 bg-[var(--secondary)] rounded-full transition-all duration-200 ease-out hover:bg-[var(--secondary)]/70'><Mic size={18} className='text-white' /></button> */}
 
                     <div className='flex items-center gap-2'>
                         <button

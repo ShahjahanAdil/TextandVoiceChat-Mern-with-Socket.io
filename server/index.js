@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(cors());
 config();
 
-// const authModel = require("./models/auth")
+const authModel = require("./models/auth")
 
 mongoose.connect(process.env.MONGOURL, { dbName: "textvoicechat", connectTimeoutMS: 30000 })
     .then(async () => {
@@ -49,6 +49,7 @@ const userProfileRouter = require("./routes/userProfile")
 const userPurchasePlanRouter = require("./routes/userPurchasePlan")
 const chatterFetchSessionsRouter = require("./routes/chatterFetchSessions")
 const chatterWithdrawsRouter = require("./routes/chatterWithdraws")
+const chatterBusyCheckRouter = require("./routes/chatterBusyCheck")
 const sessionsHistoryRouter = require("./routes/sessionsHistory")
 const fetchMessagesRouter = require("./routes/fetchMessages")
 const sendVoiceMessageRouter = require("./routes/sendVoiceMessage")
@@ -65,6 +66,7 @@ app.use("/user/profile", userProfileRouter)
 app.use("/user/purchase", userPurchasePlanRouter)
 app.use("/chatter/users", chatterFetchSessionsRouter)
 app.use("/chatter/withdraws", chatterWithdrawsRouter)
+app.use("/chatter/busy", chatterBusyCheckRouter)
 app.use("/payments", sessionsHistoryRouter)
 app.use("/messages", fetchMessagesRouter)
 app.use("/voice-message", sendVoiceMessageRouter)
@@ -102,6 +104,18 @@ app.set('io', io);
 io.on("connection", (socket) => {
     // console.log("🟢 New client connected:", socket.id);
 
+    socket.on("userOnline", async (userID) => {
+        socket.userID = userID;
+        try {
+            const now = dayjs().toDate();
+            // console.log("🔵 Setting user online:", userID);
+            await authModel.findByIdAndUpdate(userID, { isOnline: true, lastSeen: now, });
+            io.emit("userStatusUpdate", { userID, isOnline: true, lastSeen: now });
+        } catch (err) {
+            console.error("Error setting user online:", err);
+        }
+    });
+
     socket.on("joinSession", (sessionID) => {
         socket.join(sessionID);
         // console.log(`📥 Socket ${socket.id} joined session ${sessionID}`);
@@ -125,9 +139,20 @@ io.on("connection", (socket) => {
         }
     });
 
-    // socket.on("disconnect", () => {
-    //     console.log(`🔴 Socket ${socket.id} disconnected`);
-    // });
+    socket.on("disconnect", async () => {
+        // console.log(`🔴 Socket ${socket.id} disconnected`);
+
+        if (!socket.userID) return;
+        try {
+            const now = dayjs().toDate();
+            console.log("🔵 Setting user offline:", socket.userID);
+            await authModel.findByIdAndUpdate(socket.userID, { isOnline: false, lastSeen: now, });
+            io.emit("userStatusUpdate", { userID: socket.userID, isOnline: false, lastSeen: now });
+            console.log(`🔴 User ${socket.userID} went offline`);
+        } catch (err) {
+            console.error("Error setting user offline:", err);
+        }
+    });
 });
 
 const port = process.env.PORT || 8000;

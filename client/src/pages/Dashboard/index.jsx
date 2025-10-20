@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { CreditCard, DollarSign, LogOut, MessageSquare, UserRound } from 'lucide-react'
@@ -6,13 +6,27 @@ import Chats from './Chats'
 import Profile from './Profile'
 import Payments from './Payments'
 import Withdraws from './Withdraws'
+import { io } from "socket.io-client"
 
 export default function Dashboard() {
     const { user, handleLogout } = useAuthContext()
     const navigate = useNavigate()
     const location = useLocation()
+    const [socket, setSocket] = useState(null);
 
     const isActive = (path) => location.pathname.includes(path)
+
+    useEffect(() => {
+        if (!user?._id) return;
+        const newSocket = io(import.meta.env.VITE_HOST, { transports: ["websocket"] });
+        setSocket(newSocket);
+
+        newSocket.on("connect", () => {
+            newSocket.emit("userOnline", user._id);
+        });
+
+        return () => newSocket.disconnect();
+    }, [user?._id]);
 
     return (
         <div className='flex h-screen'>
@@ -53,8 +67,8 @@ export default function Dashboard() {
 
             <div className='flex-1 h-full overflow-x-hidden'>
                 <Routes>
-                    <Route index element={<Chats />} />
-                    <Route path='chats' element={<Chats />} />
+                    <Route index element={<Chats socket={socket} />} />
+                    <Route path='chats' element={<Chats socket={socket} />} />
                     <Route path='profile' element={<Profile />} />
                     <Route path='payments' element={<Payments />} />
                     <Route path='withdraws' element={<Withdraws />} />
